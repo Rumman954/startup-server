@@ -17,6 +17,9 @@ router.get('/', async (req, res) => {
     } = req.query;
 
     const filter = {};
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 9));
+    const skip = (pageNum - 1) * limitNum;
 
     if (search) {
       filter.$or = [
@@ -30,30 +33,31 @@ router.get('/', async (req, res) => {
       if (types.length) filter.work_type = { $in: types };
     }
 
-    let opportunities = await Opportunity.find(filter)
-      .populate('startup_id')
-      .sort({ createdAt: -1 });
-
     if (industry) {
       const industries = industry.split(',').filter(Boolean);
-      opportunities = opportunities.filter((opp) => {
-        const startup = opp.startup_id;
-        return startup && industries.includes(startup.industry);
-      });
+      if (industries.length) {
+        const startups = await Startup.find({ industry: { $in: industries } }).select('_id');
+        filter.startup_id = { $in: startups.map((s) => s._id) };
+      }
     }
 
-    const total = opportunities.length;
-    const startIndex = (parseInt(page) - 1) * parseInt(limit);
-    const paginated = opportunities.slice(startIndex, startIndex + parseInt(limit));
+    const [total, opportunities] = await Promise.all([
+      Opportunity.countDocuments(filter),
+      Opportunity.find(filter)
+        .populate('startup_id')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
+    ]);
 
     res.json({
       success: true,
-      data: paginated,
+      data: opportunities,
       pagination: {
         total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(total / parseInt(limit)),
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum) || 1,
       },
     });
   } catch (error) {

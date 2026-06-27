@@ -11,6 +11,10 @@ router.post('/image', verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Image data required' });
     }
 
+    if (!process.env.IMGBB_API_KEY) {
+      return res.status(500).json({ success: false, message: 'IMGBB_API_KEY is not configured on server' });
+    }
+
     const formData = new FormData();
     formData.append('key', process.env.IMGBB_API_KEY);
     formData.append('image', image);

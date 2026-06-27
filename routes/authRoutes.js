@@ -93,11 +93,14 @@ router.post('/sync-user', async (req, res) => {
         image: image || '',
         role: userRole,
       });
-    } else if (email === process.env.ADMIN_EMAIL) {
-      user.role = 'admin';
-      await user.save();
-    } else if (role && user.role !== 'admin') {
-      user.role = role;
+    } else {
+      if (image) user.image = image;
+      if (name) user.name = name;
+      if (email === process.env.ADMIN_EMAIL) {
+        user.role = 'admin';
+      } else if (role && user.role !== 'admin') {
+        user.role = role;
+      }
       await user.save();
     }
 
