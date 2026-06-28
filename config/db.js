@@ -15,7 +15,7 @@ const connectDB = async () => {
     if (error.message.includes('bad auth') || error.message.includes('Authentication failed')) {
       console.error('   Check your database username and password in MONGODB_URI.');
     }
-    process.exit(1);
+    throw error;
   }
 };
 

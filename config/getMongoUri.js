@@ -18,9 +18,9 @@ export const resolveMongoUri = async () => {
   }
 
   if (process.env.NODE_ENV === 'production') {
-    console.error('\n❌ Invalid MONGODB_URI in server/.env');
-    console.error('   Set a real MongoDB Atlas connection string before deploying.\n');
-    process.exit(1);
+    throw new Error(
+      'Invalid MONGODB_URI — set a real MongoDB Atlas connection string in environment variables.'
+    );
   }
 
   resolvedUri = process.env.MONGODB_LOCAL_URI || 'mongodb://127.0.0.1:27017/startupforge';

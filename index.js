@@ -1,93 +1,30 @@
-import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import cookieParser from 'cookie-parser';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { toNodeHandler } from 'better-auth/node';
-import connectDB from './config/db.js';
-import { initAuth, getAuth } from './config/auth.js';
-import { seedAdmin } from './utils/seedAdmin.js';
-import authRoutes from './routes/authRoutes.js';
-import startupRoutes from './routes/startupRoutes.js';
-import opportunityRoutes from './routes/opportunityRoutes.js';
-import applicationRoutes from './routes/applicationRoutes.js';
-import adminRoutes from './routes/adminRoutes.js';
-import paymentRoutes from './routes/paymentRoutes.js';
-import userRoutes from './routes/userRoutes.js';
-import uploadRoutes from './routes/uploadRoutes.js';
-import { getPasswordValidationError } from './utils/validatePassword.js';
+import { getApp } from './app.js';
 
-const app = express();
 const PORT = process.env.PORT || 5000;
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+export default async function handler(req, res) {
+  try {
+    const app = await getApp();
+    return app(req, res);
+  } catch (error) {
+    console.error('Server init failed:', error);
+    res.status(503).json({
+      success: false,
+      message: 'Server failed to start',
+      error: process.env.NODE_ENV === 'production' ? 'Check server logs and environment variables' : error.message,
+    });
+  }
+}
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      if (process.env.NODE_ENV !== 'production' && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-        return callback(null, true);
-      }
-      callback(new Error('Not allowed by CORS'));
-    },
-    credentials: true,
-  })
-);
-
-app.use(cookieParser());
-
-const startServer = async () => {
-  await connectDB();
-  await initAuth();
-  await seedAdmin();
-
-  app.use(express.json({ limit: '10mb' }));
-
-  app.use('/api/auth/sign-up/email', (req, res, next) => {
-    if (req.method !== 'POST') return next();
-    const passwordError = getPasswordValidationError(req.body?.password);
-    if (passwordError) {
-      return res.status(400).json({ message: passwordError });
-    }
-    next();
-  });
-
-  app.all('/api/auth/*', toNodeHandler(getAuth()));
-
-  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-  app.get('/', (req, res) => {
-    res.json({ message: 'StartupForge API is running' });
-  });
-
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-  });
-
-  app.use('/api/jwt', authRoutes);
-  app.use('/api/startups', startupRoutes);
-  app.use('/api/opportunities', opportunityRoutes);
-  app.use('/api/applications', applicationRoutes);
-  app.use('/api/admin', adminRoutes);
-  app.use('/api/payments', paymentRoutes);
-  app.use('/api/users', userRoutes);
-  app.use('/api/upload', uploadRoutes);
-
-  app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ success: false, message: 'Internal server error' });
-  });
-
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-};
-
-startServer().catch(console.error);
+if (!process.env.VERCEL) {
+  getApp()
+    .then((app) => {
+      app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+      });
+    })
+    .catch((error) => {
+      console.error('Failed to start server:', error.message);
+      process.exit(1);
+    });
+}
