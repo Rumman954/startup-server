@@ -17,10 +17,12 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import { getPasswordValidationError } from './utils/validatePassword.js';
+import { validateProductionEnv } from './utils/validateEnv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function createApp() {
+  validateProductionEnv();
   await connectDB();
   await initAuth();
   await seedAdmin();
@@ -91,7 +93,10 @@ let appPromise;
 
 export function getApp() {
   if (!appPromise) {
-    appPromise = createApp();
+    appPromise = createApp().catch((error) => {
+      appPromise = null;
+      throw error;
+    });
   }
   return appPromise;
 }
