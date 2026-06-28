@@ -57,3 +57,19 @@ export const requireRole = (...roles) => {
     next();
   };
 };
+
+export const optionalVerifyToken = async (req, res, next) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) return next();
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+    if (user && !user.isBlocked) {
+      req.user = user;
+    }
+  } catch {
+    /* ignore invalid token for optional auth */
+  }
+  next();
+};

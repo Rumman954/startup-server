@@ -6,10 +6,15 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "db:clear": "node scripts/clearDatabase.js",
+    "db:setup": "node scripts/setupDatabase.js",
+    "admin:create": "node scripts/createAdmin.js",
+    "premium:reset": "node scripts/resetPremium.js",
+    "payments:fix-status": "node scripts/fixPaymentStatus.js"
   },
   "dependencies": {
-    "better-auth": "^1.2.5",
+    "better-auth": "^1.6.22",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

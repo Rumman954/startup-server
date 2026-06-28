@@ -4,6 +4,10 @@ import Opportunity from '../models/Opportunity.js';
 import Application from '../models/Application.js';
 import Startup from '../models/Startup.js';
 import { verifyToken } from '../middleware/auth.js';
+import {
+  FREE_OPPORTUNITY_LIMIT,
+  getOpportunityLimit,
+} from '../utils/premiumPlans.js';
 
 const router = express.Router();
 
@@ -56,9 +60,22 @@ router.get('/founder/stats', verifyToken, async (req, res) => {
     const totalApplications = applications.length;
     const acceptedMembers = applications.filter((a) => a.status === 'accepted').length;
 
+    const opportunityLimit = getOpportunityLimit(req.user);
+
     res.json({
       success: true,
-      data: { totalOpportunities, totalApplications, acceptedMembers, startup },
+      data: {
+        totalOpportunities,
+        totalApplications,
+        acceptedMembers,
+        startup,
+        isPremium: req.user.isPremium,
+        premiumPlan: req.user.premiumPlan || '',
+        premiumBilling: req.user.premiumBilling || '',
+        opportunityLimit: opportunityLimit === Infinity ? null : opportunityLimit,
+        isUnlimited: opportunityLimit === Infinity,
+        freeLimit: FREE_OPPORTUNITY_LIMIT,
+      },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

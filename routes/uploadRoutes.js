@@ -1,5 +1,6 @@
 import express from 'express';
 import { verifyToken } from '../middleware/auth.js';
+import { uploadImage } from '../utils/uploadToImgBB.js';
 
 const router = express.Router();
 
@@ -11,26 +12,8 @@ router.post('/image', verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Image data required' });
     }
 
-    if (!process.env.IMGBB_API_KEY) {
-      return res.status(500).json({ success: false, message: 'IMGBB_API_KEY is not configured on server' });
-    }
-
-    const formData = new FormData();
-    formData.append('key', process.env.IMGBB_API_KEY);
-    formData.append('image', image);
-
-    const response = await fetch('https://api.imgbb.com/1/upload', {
-      method: 'POST',
-      body: formData,
-    });
-
-    const data = await response.json();
-
-    if (!data.success) {
-      return res.status(400).json({ success: false, message: 'Image upload failed' });
-    }
-
-    res.json({ success: true, url: data.data.url });
+    const url = await uploadImage(image);
+    res.json({ success: true, url });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -1,29 +1,52 @@
 import { betterAuth } from 'better-auth';
 import { mongodbAdapter } from 'better-auth/adapters/mongodb';
 import { MongoClient } from 'mongodb';
+import { resolveMongoUri } from './getMongoUri.js';
 
 let authInstance = null;
 
 export const initAuth = async () => {
-  const client = new MongoClient(process.env.MONGODB_URI);
+  const uri = await resolveMongoUri();
+  const client = new MongoClient(uri);
   await client.connect();
   const db = client.db();
+
+  const googleClientId = process.env.GOOGLE_CLIENT_ID;
+  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const hasGoogleOAuth =
+    googleClientId &&
+    googleClientSecret &&
+    !googleClientId.includes('your-google') &&
+    !googleClientSecret.includes('your-google');
+
+  if (!hasGoogleOAuth) {
+    console.warn('\n⚠️  Google login disabled: set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in server/.env');
+    console.warn('   Redirect URI: http://localhost:5000/api/auth/callback/google\n');
+  }
 
   authInstance = betterAuth({
     database: mongodbAdapter(db),
     secret: process.env.BETTER_AUTH_SECRET,
     baseURL: process.env.BETTER_AUTH_URL,
-    trustedOrigins: [process.env.CLIENT_URL],
+    trustedOrigins: [
+      process.env.CLIENT_URL,
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:5174',
+    ].filter(Boolean),
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 6,
     },
-    socialProviders: {
-      google: {
-        clientId: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      },
-    },
+    socialProviders: hasGoogleOAuth
+      ? {
+          google: {
+            clientId: googleClientId,
+            clientSecret: googleClientSecret,
+          },
+        }
+      : {},
     user: {
       additionalFields: {
         role: {
@@ -50,6 +73,16 @@ export const initAuth = async () => {
           type: 'boolean',
           required: false,
           defaultValue: false,
+        },
+        premiumPlan: {
+          type: 'string',
+          required: false,
+          defaultValue: '',
+        },
+        premiumBilling: {
+          type: 'string',
+          required: false,
+          defaultValue: '',
         },
       },
     },

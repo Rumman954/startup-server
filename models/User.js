@@ -14,6 +14,17 @@ const userSchema = new mongoose.Schema(
     skills: [{ type: String }],
     bio: { type: String, default: '' },
     isPremium: { type: Boolean, default: false },
+    premiumPlan: {
+      type: String,
+      enum: ['', 'plus', 'pro', 'pro_plus'],
+      default: '',
+    },
+    premiumBilling: {
+      type: String,
+      enum: ['', 'monthly', 'yearly'],
+      default: '',
+    },
+    premiumExpiresAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

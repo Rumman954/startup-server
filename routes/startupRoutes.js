@@ -1,6 +1,7 @@
 import express from 'express';
 import Startup from '../models/Startup.js';
 import { verifyToken, requireRole } from '../middleware/auth.js';
+import { attachFounderNames } from '../utils/startupHelpers.js';
 
 const router = express.Router();
 
@@ -9,7 +10,8 @@ router.get('/', async (req, res) => {
     const { status = 'approved' } = req.query;
     const filter = status ? { status } : {};
     const startups = await Startup.find(filter).sort({ createdAt: -1 }).limit(20);
-    res.json({ success: true, data: startups });
+    const data = await attachFounderNames(startups);
+    res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -20,7 +22,8 @@ router.get('/featured', async (req, res) => {
     const startups = await Startup.find({ status: 'approved' })
       .sort({ createdAt: -1 })
       .limit(6);
-    res.json({ success: true, data: startups });
+    const data = await attachFounderNames(startups);
+    res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -29,7 +32,8 @@ router.get('/featured', async (req, res) => {
 router.get('/founder/mine', verifyToken, requireRole('founder'), async (req, res) => {
   try {
     const startup = await Startup.findOne({ founder_email: req.user.email });
-    res.json({ success: true, data: startup });
+    const data = startup ? await attachFounderNames(startup) : null;
+    res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -41,7 +45,8 @@ router.get('/:id', async (req, res) => {
     if (!startup) {
       return res.status(404).json({ success: false, message: 'Startup not found' });
     }
-    res.json({ success: true, data: startup });
+    const data = await attachFounderNames(startup);
+    res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -66,7 +71,8 @@ router.post('/', verifyToken, requireRole('founder', 'admin'), async (req, res) 
       team_size_needed: team_size_needed || 5,
     });
 
-    res.status(201).json({ success: true, data: startup });
+    const data = await attachFounderNames(startup);
+    res.status(201).json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -84,7 +90,8 @@ router.put('/:id', verifyToken, requireRole('founder', 'admin'), async (req, res
     }
 
     const updated = await Startup.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json({ success: true, data: updated });
+    const data = await attachFounderNames(updated);
+    res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

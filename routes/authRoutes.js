@@ -2,6 +2,7 @@ import express from 'express';
 import User from '../models/User.js';
 import { generateToken, setTokenCookie, verifyToken } from '../middleware/auth.js';
 import { getAuth } from '../config/auth.js';
+import { uploadImage } from '../utils/uploadToImgBB.js';
 
 const router = express.Router();
 
@@ -43,6 +44,8 @@ router.post('/issue-jwt', async (req, res) => {
         skills: user.skills,
         bio: user.bio,
         isPremium: user.isPremium,
+        premiumPlan: user.premiumPlan || '',
+        premiumBilling: user.premiumBilling || '',
       },
     });
   } catch (error) {
@@ -62,6 +65,8 @@ router.get('/me', verifyToken, async (req, res) => {
       skills: req.user.skills,
       bio: req.user.bio,
       isPremium: req.user.isPremium,
+      premiumPlan: req.user.premiumPlan || '',
+      premiumBilling: req.user.premiumBilling || '',
     },
   });
 });
@@ -77,24 +82,39 @@ router.post('/logout', (req, res) => {
 
 router.post('/sync-user', async (req, res) => {
   try {
-    const { name, email, image, role } = req.body;
+    const { name, email, image, imageBase64, role } = req.body;
 
     if (!email || !name) {
       return res.status(400).json({ success: false, message: 'Name and email required' });
     }
 
+    let imageUrl = image || '';
+
+    if (imageBase64) {
+      try {
+        imageUrl = await uploadImage(imageBase64);
+      } catch (uploadError) {
+        return res.status(400).json({ success: false, message: uploadError.message });
+      }
+    } else if (image && !/^https?:\/\//i.test(image)) {
+      return res.status(400).json({ success: false, message: 'Image must be a valid URL or uploaded file' });
+    }
+
     let user = await User.findOne({ email });
 
     if (!user) {
+      if (!imageUrl) {
+        return res.status(400).json({ success: false, message: 'Profile image is required' });
+      }
       const userRole = email === process.env.ADMIN_EMAIL ? 'admin' : (role || 'collaborator');
       user = await User.create({
         name,
         email,
-        image: image || '',
+        image: imageUrl,
         role: userRole,
       });
     } else {
-      if (image) user.image = image;
+      if (imageUrl) user.image = imageUrl;
       if (name) user.name = name;
       if (email === process.env.ADMIN_EMAIL) {
         user.role = 'admin';
