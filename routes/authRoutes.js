@@ -6,6 +6,79 @@ import { uploadImage } from '../utils/uploadToImgBB.js';
 
 const router = express.Router();
 
+const formatUserResponse = (user) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  image: user.image,
+  role: user.role,
+  skills: user.skills,
+  bio: user.bio,
+  isPremium: user.isPremium,
+  premiumPlan: user.premiumPlan || '',
+  premiumBilling: user.premiumBilling || '',
+});
+
+const findOrCreateAppUser = async (sessionUser) => {
+  let user = await User.findOne({ email: sessionUser.email });
+
+  if (!user) {
+    user = await User.create({
+      name: sessionUser.name,
+      email: sessionUser.email,
+      image: sessionUser.image || '',
+      role:
+        sessionUser.email === process.env.ADMIN_EMAIL
+          ? 'admin'
+          : sessionUser.role || 'collaborator',
+    });
+  }
+
+  return user;
+};
+
+/** Credential login in one request — fixes cross-origin Better Auth session cookies on Vercel */
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Email and password required' });
+    }
+
+    const auth = getAuth();
+    const result = await auth.api.signInEmail({
+      body: { email: email.trim(), password },
+      headers: req.headers,
+    });
+
+    if (result?.error) {
+      return res.status(401).json({
+        success: false,
+        message: result.error.message || 'Invalid email or password',
+      });
+    }
+
+    const sessionUser = result?.user || result?.data?.user;
+    if (!sessionUser?.email) {
+      return res.status(401).json({ success: false, message: 'Invalid email or password' });
+    }
+
+    const user = await findOrCreateAppUser(sessionUser);
+
+    if (user.isBlocked) {
+      return res.status(403).json({ success: false, message: 'Account blocked' });
+    }
+
+    const token = generateToken(user);
+    setTokenCookie(res, token);
+
+    res.json({ success: true, user: formatUserResponse(user) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.post('/issue-jwt', async (req, res) => {
   try {
     const auth = getAuth();
@@ -15,16 +88,7 @@ router.post('/issue-jwt', async (req, res) => {
       return res.status(401).json({ success: false, message: 'No active session' });
     }
 
-    let user = await User.findOne({ email: session.user.email });
-
-    if (!user) {
-      user = await User.create({
-        name: session.user.name,
-        email: session.user.email,
-        image: session.user.image || '',
-        role: session.user.email === process.env.ADMIN_EMAIL ? 'admin' : (session.user.role || 'collaborator'),
-      });
-    }
+    let user = await findOrCreateAppUser(session.user);
 
     if (user.isBlocked) {
       return res.status(403).json({ success: false, message: 'Account blocked' });
@@ -35,18 +99,7 @@ router.post('/issue-jwt', async (req, res) => {
 
     res.json({
       success: true,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        image: user.image,
-        role: user.role,
-        skills: user.skills,
-        bio: user.bio,
-        isPremium: user.isPremium,
-        premiumPlan: user.premiumPlan || '',
-        premiumBilling: user.premiumBilling || '',
-      },
+      user: formatUserResponse(user),
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -56,18 +109,7 @@ router.post('/issue-jwt', async (req, res) => {
 router.get('/me', verifyToken, async (req, res) => {
   res.json({
     success: true,
-    user: {
-      id: req.user._id,
-      name: req.user.name,
-      email: req.user.email,
-      image: req.user.image,
-      role: req.user.role,
-      skills: req.user.skills,
-      bio: req.user.bio,
-      isPremium: req.user.isPremium,
-      premiumPlan: req.user.premiumPlan || '',
-      premiumBilling: req.user.premiumBilling || '',
-    },
+    user: formatUserResponse(req.user),
   });
 });
 

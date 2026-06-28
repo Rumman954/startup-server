@@ -59,6 +59,35 @@ export const seedAdmin = async () => {
     }
 
     console.log(`Admin account already exists: ${adminEmail}`);
+
+    // Ensure password matches ADMIN_PASSWORD (recreate auth user if sign-in fails)
+    const signInCheck = await auth.api.signInEmail({
+      body: { email: adminEmail, password: adminPassword },
+    });
+
+    if (signInCheck?.error) {
+      console.log('Admin password out of sync — recreating Better Auth admin user...');
+      const userId = authUser.id || String(authUser._id);
+      await db.collection('account').deleteMany({ userId });
+      await db.collection('session').deleteMany({ userId });
+      await db.collection('user').deleteOne({ email: adminEmail });
+
+      const result = await auth.api.signUpEmail({
+        body: { email: adminEmail, password: adminPassword, name },
+      });
+
+      if (result?.error) {
+        console.error('Admin auth recreate error:', result.error.message || result.error);
+        return;
+      }
+
+      await db.collection('user').updateOne(
+        { email: adminEmail },
+        { $set: { role: 'admin', emailVerified: true } }
+      );
+
+      console.log(`Admin login reset: ${adminEmail} / ${adminPassword}`);
+    }
   } catch (error) {
     console.error('Admin seed error:', error.message);
   }

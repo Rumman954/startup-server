@@ -30,11 +30,22 @@ export const initAuth = async () => {
     baseURL: process.env.BETTER_AUTH_URL,
     trustedOrigins: [
       process.env.CLIENT_URL,
+      process.env.BETTER_AUTH_URL,
       'http://localhost:5173',
       'http://localhost:5174',
       'http://127.0.0.1:5173',
       'http://127.0.0.1:5174',
-    ].filter(Boolean),
+    ]
+      .flatMap((origin) => (origin || '').split(','))
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+    advanced: {
+      useSecureCookies: process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL),
+      defaultCookieAttributes: {
+        sameSite: process.env.NODE_ENV === 'production' || process.env.VERCEL ? 'none' : 'lax',
+        secure: process.env.NODE_ENV === 'production' || Boolean(process.env.VERCEL),
+      },
+    },
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 6,
